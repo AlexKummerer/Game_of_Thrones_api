@@ -125,6 +125,7 @@ class CharacterService:
             Character: The updated character.
         """
         character = self.get_character_by_id(character_id)
+        print(character)
         if character:
             for key, value in updated_data.items():
                 if hasattr(character, key):

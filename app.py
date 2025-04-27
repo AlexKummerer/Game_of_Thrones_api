@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Optional
 from services.data_loader import load_characters_from_json
@@ -15,6 +16,30 @@ characters = load_characters_from_json(characters_filepath)
 
 
 character_service = CharacterService(characters)
+
+
+class CharacterUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    house: Optional[str] = None
+    animal: Optional[str] = None
+    symbol: Optional[str] = None
+    nickname: Optional[str] = None
+    role: Optional[str] = None
+    age: Optional[int] = None
+    death: Optional[int] = None
+    strength: Optional[str] = None
+
+
+class CharacterCreateRequest(BaseModel):
+    name: str
+    house: str
+    animal: Optional[str] = None
+    symbol: Optional[str] = None
+    nickname: Optional[str] = None
+    role: str
+    age: int
+    death: Optional[int] = None
+    strength: Optional[str] = None
 
 
 # Exception-Handler
@@ -81,6 +106,55 @@ def get_character_by_id(character_id: int):
     if character:
         return character.to_dict()
     raise HTTPException(status_code=404, detail="Character not found")
+
+
+@app.post("/characters", status_code=201)
+def create_character(request: CharacterCreateRequest):
+    try:
+        character_data = request.model_dump()
+        character = character_service.add_character(character_data)
+        return character.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while creating the character.",
+        )
+
+
+@app.patch("/characters/{character_id}")
+def update_character(character_id: int, request: CharacterUpdateRequest):
+    try:
+        updated_data = request.model_dump(
+            exclude_unset=True
+        )  # Nur Felder, die wirklich gesendet wurden
+        print(updated_data, character_id)
+        character = character_service.update_character(character_id, updated_data)
+        if character:
+            return character.to_dict()
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    except HTTPException as http_exc:
+        raise http_exc  # bewusst geworfene HTTP Fehler nicht umbrechen!
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while updating the character.",
+        )
+
+
+@app.delete("/characters/{character_id}")
+def delete_character(character_id: int):
+    try:
+        success = character_service.delete_character(character_id)
+        if success:
+            return {"message": "Character successfully deleted."}
+        raise HTTPException(status_code=404, detail="Character not found")
+    except HTTPException as http_exc:
+        raise http_exc  # bewusst geworfene HTTP Fehler nicht umbrechen!
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while deleting the character.")
 
 
 # Hinweis: Starte die App über Uvicorn: uvicorn app:app --reload --host 0.0.0.0 --port 8000
