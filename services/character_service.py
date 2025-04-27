@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from models.character import Character
 import random
 
@@ -8,7 +8,14 @@ class CharacterService:
     def __init__(self, characters: List[Character]):
         self.characters = characters
 
-    def get_all_characters(self, limit: int = 20, skip: int = 0) -> List[Character]:
+    def get_all_characters(
+        self,
+        limit: int = 20,
+        skip: int = 0,
+        filters: Optional[dict] = None,
+        sort_asc: Optional[str] = None,
+        sort_desc: Optional[str] = None,
+    ) -> List[Character]:
         """
         This method retrieves a list of characters from the character service.
         It allows for pagination by specifying a limit and a skip value.
@@ -22,10 +29,64 @@ class CharacterService:
         Returns:
             List[Character]: A list of characters.
         """
-        if limit == 0 and skip == 0:
-            return random.sample(self.characters, min(20, len(self.characters)))
+        result = self.characters
 
-        return self.characters[skip : limit + skip]
+        if filters:
+            if filters.get("name"):
+                result = [
+                    char
+                    for char in result
+                    if filters["name"].lower() in (char.name or "").lower()
+                ]
+            if filters.get("house"):
+                result = [
+                    char
+                    for char in result
+                    if filters["house"].lower() in (char.house or "").lower()
+                ]
+            if filters.get("role"):
+                result = [
+                    char
+                    for char in result
+                    if filters["role"].lower() in (char.role or "").lower()
+                ]
+            if filters.get("age") is not None:
+                result = [char for char in result if char.age == filters["age"]]
+            if filters.get("age_more_than") is not None:
+                result = [
+                    char
+                    for char in result
+                    if char.age is not None and char.age >= filters["age_more_than"]
+                ]
+            if filters.get("age_less_than") is not None:
+                result = [
+                    char
+                    for char in result
+                    if char.age is not None and char.age <= filters["age_less_than"]
+                ]
+
+        if sort_asc:
+            try:
+                result = sorted(result, key=lambda x: getattr(x, sort_asc))
+            except ArithmeticError:
+                raise ValueError(f"Cannot sort ascending by '{sort_asc}")
+
+        if sort_desc:
+            try:
+                result = sorted(
+                    result, key=lambda x: getattr(x, sort_desc), reverse=True
+                )
+            except AttributeError:
+                raise ValueError(f"Cannot sort descending by '{sort_desc}")
+
+        if limit == 0:
+            result = random.sample(result, min(20, len(result)))
+        else:
+            if skip >= len(result):
+                result = []
+            result = result[skip : skip + limit]
+
+        return result
 
     def get_character_by_id(self, character_id: int) -> Character:
         """
