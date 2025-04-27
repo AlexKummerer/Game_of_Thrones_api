@@ -6,10 +6,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Optional
 from services.data_loader import load_characters_from_json
 from services.character_service import CharacterService
+from db.database import init_db
 import os
 
 
 app = FastAPI()
+init_db()
 
 characters_filepath = os.path.join("data", "characters.json")
 characters = load_characters_from_json(characters_filepath)
@@ -95,7 +97,7 @@ def get_characters(
             sort_asc=sort_asc,
             sort_desc=sort_desc,
         )
-        return [char.to_dict() for char in result]
+        return [char for char in result]
     except ValueError as e:
         return HTTPException(status_code=400, detail=str(e))
 
@@ -104,7 +106,7 @@ def get_characters(
 def get_character_by_id(character_id: int):
     character = character_service.get_character_by_id(character_id)
     if character:
-        return character.to_dict()
+        return character
     raise HTTPException(status_code=404, detail="Character not found")
 
 
@@ -113,9 +115,12 @@ def create_character(request: CharacterCreateRequest):
     try:
         character_data = request.model_dump()
         character = character_service.add_character(character_data)
-        return character.to_dict()
+        return character
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    except HTTPException as http_exc:
+        raise http_exc  # bewusst geworfene HTTP Fehler nicht umbrechen!
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -132,9 +137,9 @@ def update_character(character_id: int, request: CharacterUpdateRequest):
         print(updated_data, character_id)
         character = character_service.update_character(character_id, updated_data)
         if character:
-            return character.to_dict()
+            return character
         raise HTTPException(status_code=404, detail="Character not found")
-    
+
     except HTTPException as http_exc:
         raise http_exc  # bewusst geworfene HTTP Fehler nicht umbrechen!
     except Exception as e:
@@ -154,7 +159,10 @@ def delete_character(character_id: int):
     except HTTPException as http_exc:
         raise http_exc  # bewusst geworfene HTTP Fehler nicht umbrechen!
     except Exception as e:
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while deleting the character.")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while deleting the character.",
+        )
 
 
 # Hinweis: Starte die App über Uvicorn: uvicorn app:app --reload --host 0.0.0.0 --port 8000

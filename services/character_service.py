@@ -1,12 +1,15 @@
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from models.character import Character
+from models.character_db import CharacterDB
+from db.database import SessionLocal
 import random
 
 
 class CharacterService:
 
     def __init__(self, characters: List[Character]):
-        self.characters = characters
+        self.db: Session = SessionLocal()
 
     def get_all_characters(
         self,
@@ -29,64 +32,42 @@ class CharacterService:
         Returns:
             List[Character]: A list of characters.
         """
-        result = self.characters
+        query = self.db.query(CharacterDB)
 
         if filters:
             if filters.get("name"):
-                result = [
-                    char
-                    for char in result
-                    if filters["name"].lower() in (char.name or "").lower()
-                ]
+                query = query.filter(CharacterDB.name.ilike(f"%{filters['name']}%"))
             if filters.get("house"):
-                result = [
-                    char
-                    for char in result
-                    if filters["house"].lower() in (char.house or "").lower()
-                ]
+                query = query.filter(CharacterDB.house.ilike(f"%{filters['house']}%"))
             if filters.get("role"):
-                result = [
-                    char
-                    for char in result
-                    if filters["role"].lower() in (char.role or "").lower()
-                ]
+                query = query.filter(CharacterDB.role.ilike(f"%{filters['role']}%"))
             if filters.get("age") is not None:
-                result = [char for char in result if char.age == filters["age"]]
+                query = query.filter(CharacterDB.age == filters["age"])
             if filters.get("age_more_than") is not None:
-                result = [
-                    char
-                    for char in result
-                    if char.age is not None and char.age >= filters["age_more_than"]
-                ]
+                query = query.filter(CharacterDB.age >= filters["age_more_than"])
             if filters.get("age_less_than") is not None:
-                result = [
-                    char
-                    for char in result
-                    if char.age is not None and char.age <= filters["age_less_than"]
-                ]
+                query = query.filter(CharacterDB.age <= filters["age_less_than"])
+
 
         if sort_asc:
             try:
-                result = sorted(result, key=lambda x: getattr(x, sort_asc))
-            except ArithmeticError:
-                raise ValueError(f"Cannot sort ascending by '{sort_asc}")
-
+                query = query.order_by(getattr(CharacterDB, sort_asc).asc())
+            except AttributeError:
+                raise ValueError(f"Cannot sort ascending by '{sort_asc}'")
         if sort_desc:
             try:
-                result = sorted(
-                    result, key=lambda x: getattr(x, sort_desc), reverse=True
-                )
+                query = query.order_by(getattr(CharacterDB, sort_desc).desc())
             except AttributeError:
-                raise ValueError(f"Cannot sort descending by '{sort_desc}")
+                raise ValueError(f"Cannot sort descending by '{sort_desc}'")
 
+
+    # Pagination
         if limit == 0:
-            result = random.sample(result, min(20, len(result)))
+            characters = query.all()
+            return random.sample(characters, min(20, len(characters)))
         else:
-            if skip >= len(result):
-                result = []
-            result = result[skip : skip + limit]
-
-        return result
+            characters = query.offset(skip).limit(limit).all()
+            return characters
 
     def get_character_by_id(self, character_id: int) -> Character:
         """
@@ -97,7 +78,8 @@ class CharacterService:
         Returns:
             Character: The character with the specified ID.
         """
-        return next((char for char in self.characters if char.id == character_id), None)
+        return self.db.query(CharacterDB).filter(CharacterDB.id == character_id).first()
+
 
     def add_character(self, character_data: dict) -> Character:
         """
@@ -108,10 +90,12 @@ class CharacterService:
         Returns:
             Character: The newly added character.
         """
-        new_id = max((char.id for char in self.characters), default=0) + 1
-        character_data["id"] = new_id
-        new_character = Character(**character_data)
-        self.characters.append(new_character)
+        new_character = CharacterDB(**character_data)
+    
+        self.db.add(new_character)
+        self.db.commit()
+        self.db.refresh(new_character)
+        print(new_character.name)
         return new_character
 
     def update_character(self, character_id: int, updated_data: dict) -> Character:
@@ -125,11 +109,12 @@ class CharacterService:
             Character: The updated character.
         """
         character = self.get_character_by_id(character_id)
-        print(character)
         if character:
             for key, value in updated_data.items():
                 if hasattr(character, key):
                     setattr(character, key, value)
+                self.db.commit()
+                self.db.refresh(character)
             return character
         return None
 
@@ -145,6 +130,7 @@ class CharacterService:
         """
         character = self.get_character_by_id(character_id)
         if character:
-            self.characters.remove(character)
+            self.db.delete(character)
+            self.db.commit()            
             return True
         return False
