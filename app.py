@@ -1,9 +1,13 @@
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Optional
+from auth.users import users
+from auth.dependencies import get_current_user
+from auth.jwt_handler import create_access_token
 from services.data_loader import load_characters_from_json
 from services.character_service import CharacterService
 from db.database import init_db
@@ -69,7 +73,18 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/characters")
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = users.get(form_data.username)
+    if not user or user["password"] != form_data.password:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user["role"]}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/characters", dependencies=[Depends(get_current_user)])
 def get_characters(
     limit: int = Query(0, ge=0),
     skip: int = Query(0, ge=0),
@@ -102,7 +117,7 @@ def get_characters(
         return HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/characters/{character_id}")
+@app.get("/characters/{character_id}", dependencies=[Depends(get_current_user)])
 def get_character_by_id(character_id: int):
     character = character_service.get_character_by_id(character_id)
     if character:
@@ -110,7 +125,7 @@ def get_character_by_id(character_id: int):
     raise HTTPException(status_code=404, detail="Character not found")
 
 
-@app.post("/characters", status_code=201)
+@app.post("/characters", status_code=201, dependencies=[Depends(get_current_user)])
 def create_character(request: CharacterCreateRequest):
     try:
         character_data = request.model_dump()
@@ -128,7 +143,7 @@ def create_character(request: CharacterCreateRequest):
         )
 
 
-@app.patch("/characters/{character_id}")
+@app.patch("/characters/{character_id}", dependencies=[Depends(get_current_user)])
 def update_character(character_id: int, request: CharacterUpdateRequest):
     try:
         updated_data = request.model_dump(
@@ -149,7 +164,7 @@ def update_character(character_id: int, request: CharacterUpdateRequest):
         )
 
 
-@app.delete("/characters/{character_id}")
+@app.delete("/characters/{character_id}", dependencies=[Depends(get_current_user)])
 def delete_character(character_id: int):
     try:
         success = character_service.delete_character(character_id)
