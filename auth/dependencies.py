@@ -16,7 +16,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        return payload  # enthält z.B. username + role
+        return payload
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

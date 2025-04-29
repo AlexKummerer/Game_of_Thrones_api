@@ -11,6 +11,8 @@ from auth.jwt_handler import create_access_token
 from services.data_loader import load_characters_from_json
 from services.character_service import CharacterService
 from db.database import init_db
+from services.admin_service import AdminService
+
 import os
 
 
@@ -78,13 +80,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = users.get(form_data.username)
     if not user or user["password"] != form_data.password:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
-    
+
     access_token = create_access_token(
         data={"sub": user["username"], "role": user["role"]}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/characters", dependencies=[Depends(get_current_user)])
+
+@app.get("/characters")
 def get_characters(
     limit: int = Query(0, ge=0),
     skip: int = Query(0, ge=0),
@@ -117,7 +120,7 @@ def get_characters(
         return HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/characters/{character_id}", dependencies=[Depends(get_current_user)])
+@app.get("/characters/{character_id}")
 def get_character_by_id(character_id: int):
     character = character_service.get_character_by_id(character_id)
     if character:
@@ -129,6 +132,9 @@ def get_character_by_id(character_id: int):
 def create_character(request: CharacterCreateRequest):
     try:
         character_data = request.model_dump()
+        existing_character = character_service.get_character_by_name(character_data["name"])
+        if existing_character:
+            raise HTTPException(status_code=400, detail="Character with this name already exists")
         character = character_service.add_character(character_data)
         return character
     except ValueError as e:
@@ -180,4 +186,10 @@ def delete_character(character_id: int):
         )
 
 
-# Hinweis: Starte die App über Uvicorn: uvicorn app:app --reload --host 0.0.0.0 --port 8000
+@app.post("/admin/load-json", dependencies=[Depends(get_current_user)])
+def load_json_to_db(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
+    AdminService.load_json_into_db()
+    return {"message": "Characters loaded successfully into database."}

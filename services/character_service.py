@@ -134,3 +134,6 @@ class CharacterService:
             self.db.commit()            
             return True
         return False
+
+    def get_character_by_name(self, name: str) -> Optional[CharacterDB]:
+        return self.db.query(CharacterDB).filter(CharacterDB.name.ilike(name)).first()
