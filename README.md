@@ -95,6 +95,7 @@ GET | /characters/{id} | ✅ | Get character by ID
 POST | /characters | ✅ | Create a new character
 PATCH | /characters/{id} | ✅ | Update character fields
 DELETE | /characters/{id} | ✅ | Delete a character
+POST | admin/load-json | ✅ |An Admin is able to uplaod a predefined json of characters
 
 ## Example Protected Request
 ```bash
