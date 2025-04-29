@@ -90,8 +90,8 @@ Authorization: Bearer <JWT_TOKEN>
 Method | Endpoint | Protected? | Description
 ---|---|---|---
 POST | /login | ❌ | Get JWT Token
-GET | /characters | ✅ | Get all characters with optional pagination, filtering, sorting
-GET | /characters/{id} | ✅ | Get character by ID
+GET | /characters | ❌ | Get all characters with optional pagination, filtering, sorting
+GET | /characters/{id} | ❌ | Get character by ID
 POST | /characters | ✅ | Create a new character
 PATCH | /characters/{id} | ✅ | Update character fields
 DELETE | /characters/{id} | ✅ | Delete a character
